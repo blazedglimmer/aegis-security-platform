@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aegis — Authorized Security Assessment</title>
+<style>
+  :root{--bg:#0b1120;--panel:#131c31;--panel2:#1b263f;--line:#263449;--fg:#e6edf6;
+        --muted:#8aa0bd;--accent:#38bdf8;--ok:#34d399;
+        --critical:#7f1d1d;--high:#b91c1c;--medium:#c2410c;--low:#a16207;--info:#475569;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);
+     font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  a{color:var(--accent)} .wrap{max-width:1100px;margin:0 auto;padding:24px 18px 80px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+  header h1{font-size:20px;margin:0}
+  .badge{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+  .note{background:#1c1402;border:1px solid #a16207;border-radius:8px;padding:8px 12px;font-size:12px;color:#fde68a;margin:10px 0 18px}
+  .note.err{border-color:#b91c1c;color:#fecaca;background:#1a0606}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .panel.dim{opacity:.5} .panel h2{font-size:14px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:9px 10px;font-size:13px}
+  button{background:var(--accent);color:#052036;border:0;border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer;font-size:13px}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .chk{display:flex;align-items:center;gap:6px;font-size:13px}.chk input{width:auto}
+  code{background:#0b1220;color:#7dd3fc;padding:1px 6px;border-radius:5px;font-size:12px;word-break:break-all}
+  pre{background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:11.5px;max-height:220px;white-space:pre-wrap}
+  .pill{color:#fff;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;text-transform:capitalize}
+  .agents{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .acard{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .acard .nm{font-weight:600;text-transform:capitalize}.acard .st{font-size:11px;color:var(--muted)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:#475569}
+  .log{height:210px;overflow:auto;background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px;font-family:ui-monospace,monospace}
+  .log div{padding:1px 0;color:var(--muted)}.log b{color:var(--fg)}
+  .sevbar{display:flex;height:26px;border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+  .sevbar span{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;min-width:26px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  tr.f{cursor:pointer}tr.f:hover{background:var(--panel2)}
+  .muted{color:var(--muted)}.mono{font-family:ui-monospace,monospace}
+  .tag{font-size:10px;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--muted);text-decoration:none;display:inline-block}
+  ol{margin:6px 0 6px 18px;padding:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🛡️ Aegis</h1>
+    <span class="badge">authorized multi-agent security assessment</span>
+    <span class="badge" id="health">…</span>
+  </header>
+  <div class="note">
+    <b>Authorized use only.</b> Scans run only after you prove control of the target
+    (DNS&nbsp;TXT, a <code>.well-known</code> file, or an HTTP header). Active testing is
+    non-destructive by default and strictly confined to the verified scope.
+  </div>
+  <div id="err"></div>
+  <div class="grid">
+    <div>
+      <div class="panel" id="p-auth">
+        <h2>1 · Target &amp; Authorization</h2>
+        <label>Target URL</label>
+        <input id="target" placeholder="https://example.com" />
+        <div class="row" style="margin-top:10px">
+          <button id="btnToken">Get verification token</button>
+        </div>
+        <div id="verifyBox"></div>
+        <div id="authzOk" style="margin-top:10px"></div>
+      </div>
+      <div class="panel dim" id="p-cfg">
+        <h2>2 · Assessment configuration</h2>
+        <label>Profile</label>
+        <select id="profile">
+          <option value="passive">passive (observe only)</option>
+          <option value="safe" selected>safe (non-destructive active)</option>
+          <option value="aggressive">aggressive (more active, still non-destructive)</option>
+        </select>
+        <label>Agents</label>
+        <div class="row">
+          <label class="chk"><input type="checkbox" class="ag" value="web_vuln" checked/> web_vuln</label>
+          <label class="chk"><input type="checkbox" class="ag" value="authz" checked/> authz</label>
+          <label class="chk"><input type="checkbox" class="ag" value="api" checked/> api</label>
+        </div>
+        <div class="row" style="margin-top:12px"><button id="btnScan" disabled>Start scan</button></div>
+        <p class="muted" style="font-size:12px;margin-top:8px">Recon, validation, analysis &amp; reporting always run.</p>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <h2>3 · Live assessment <span class="tag" id="scanStatus" style="display:none"></span></h2>
+        <div id="liveEmpty" class="muted">Authorize a target and start a scan to watch agents work.</div>
+        <div id="live" style="display:none">
+          <div class="row" style="margin-bottom:10px">
+            <button class="ghost" id="btnPause">Pause</button>
+            <button class="ghost" id="btnResume">Resume</button>
+            <button class="ghost" id="btnStop">Stop</button>
+            <span class="muted mono" id="scanIdLabel"></span>
+          </div>
+          <div class="agents" id="agents"></div>
+          <label style="margin-top:12px">Event stream</label>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+      <div class="panel" id="p-find" style="display:none">
+        <h2>4 · Findings <span class="tag" id="findCount">0</span></h2>
+        <div class="sevbar" id="sevbar"></div>
+        <div class="row" id="reportLinks" style="margin-top:10px;display:none"></div>
+        <table style="margin-top:12px"><thead><tr><th>Severity</th><th>Finding</th><th>Status</th><th>CVSS</th></tr></thead>
+          <tbody id="findBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const SEV = ["critical","high","medium","low","info"];
+const STDOT = {done:"#34d399",running:"#38bdf8",degraded:"#fbbf24",blocked:"#f87171",stopped:"#f87171"};
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let authz=null, scan=null, agentStatus={}, findings=[], ws=null, pollT=null;
+
+async function api(p, opts={}){
+  const r = await fetch("/api"+p,{headers:{"Content-Type":"application/json"},...opts});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.detail||r.statusText);
+  return j;
+}
+function showErr(m){ $("#err").innerHTML = m ? `<div class="note err">⚠ ${esc(m)}</div>` : ""; }
+
+api("/health").then(h=>{ $("#health").textContent =
+  `LLM ${h.llm_available?"on":"off"} · nuclei ${h.nuclei_available?"on":"off"} · ZAP ${h.zap_configured?"on":"off"}`;
+}).catch(()=>{});
+
+$("#btnToken").onclick = async () => {
+  showErr(""); const t = $("#target").value.trim(); if(!t) return;
+  try{
+    const r = await api("/authorizations",{method:"POST",body:JSON.stringify({target_url:t})});
+    $("#verifyBox").innerHTML = `
+      <label style="margin-top:12px">Prove ownership via ONE method</label>
+      <select id="method">
+        <option value="file">well-known file</option>
+        <option value="header">HTTP header</option>
+        <option value="dns">DNS TXT</option></select>
+      <pre id="methodText"></pre>
+      <label>Operator / engagement ref (for audit)</label>
+      <input id="operator" placeholder="you@company / PT-2024-017"/>
+      <div class="row" style="margin-top:10px"><button id="btnVerify">Verify ownership</button></div>`;
+    const methods = r.methods;
+    const upd = () => $("#methodText").textContent = methods[$("#method").value];
+    $("#method").onchange = upd; upd();
+    $("#btnVerify").onclick = doVerify;
+  }catch(e){ showErr(e.message); }
+};
+
+async function doVerify(){
+  showErr("");
+  const t = $("#target").value.trim();
+  try{
+    const r = await api("/authorizations/verify",{method:"POST",body:JSON.stringify({
+      target_url:t, method:$("#method").value, operator:($("#operator").value||"unknown")})});
+    authz = r;
+    $("#target").disabled = true; $("#btnToken").disabled = true; $("#verifyBox").innerHTML="";
+    $("#authzOk").innerHTML = `<div style="color:var(--ok)">✓ Authorized <code>${esc(r.host)}</code> via ${esc(r.method)}.<br>
+      <span class="muted">scope: ${esc(r.scope)} · id ${esc(r.authorization_id)}</span></div>`;
+    $("#p-cfg").classList.remove("dim"); $("#btnScan").disabled = false;
+  }catch(e){ showErr(e.message); }
+}
+
+$("#btnScan").onclick = async () => {
+  showErr(""); if(!authz) return;
+  const agents = [...document.querySelectorAll(".ag:checked")].map(c=>c.value);
+  try{
+    const c = await api("/scans",{method:"POST",body:JSON.stringify({
+      authorization_id:authz.authorization_id, profile:$("#profile").value, agents})});
+    scan = c; agentStatus={}; findings=[];
+    $("#liveEmpty").style.display="none"; $("#live").style.display="block";
+    $("#scanIdLabel").textContent = c.scan_id; $("#log").innerHTML=""; renderAgents();
+    connectWS(c.scan_id);
+    await api(`/scans/${c.scan_id}/start`,{method:"POST"});
+    setStatus("running"); startPoll(c.scan_id);
+  }catch(e){ showErr(e.message); }
+};
+
+function ctl(a){ return async()=>{ if(!scan) return; try{ await api(`/scans/${scan.scan_id}/${a}`,{method:"POST"});}catch(e){showErr(e.message);} }; }
+$("#btnPause").onclick = ctl("pause"); $("#btnResume").onclick = ctl("resume"); $("#btnStop").onclick = ctl("stop");
+
+function setStatus(s){ const el=$("#scanStatus"); el.style.display="inline-block"; el.textContent=s; }
+const AGENTS=["recon","web_vuln","authz","api","exploit","analysis","reporting"];
+function renderAgents(){
+  $("#agents").innerHTML = AGENTS.map(a=>{
+    const s=agentStatus[a]||{}; const color=STDOT[s.state]||"#475569";
+    const extra=(s.items!=null?` · ${s.items} items`:"")+(s.elapsed!=null?` · ${s.elapsed}s`:"");
+    return `<div class="acard"><div class="nm"><span class="dot" style="background:${color}"></span>${a.replace("_"," ")}</div>
+      <div class="st">${esc(s.state||"idle")}${extra}</div></div>`;
+  }).join("");
+}
+function logLine(ev){
+  const d=document.createElement("div");
+  d.innerHTML=`<span class="muted">${(ev.ts||"").slice(11,19)}</span> <b>${esc(ev.agent)}</b> ${esc(ev.message)}`;
+  const log=$("#log"); log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
+function connectWS(id){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  ws=new WebSocket(`${proto}://${location.host}/api/scans/${id}/events`);
+  ws.onmessage=(m)=>{
+    const ev=JSON.parse(m.data); logLine(ev);
+    if(ev.type==="agent_start"){ agentStatus[ev.agent]={state:"running"}; renderAgents(); }
+    else if(ev.type==="agent_end"){ agentStatus[ev.agent]={state:"done",items:ev.data.items,elapsed:ev.data.elapsed_s}; renderAgents(); }
+    else if(ev.type==="error"&&ev.agent&&agentStatus[ev.agent]){ agentStatus[ev.agent].state="degraded"; renderAgents(); }
+    if(ev.type==="scan_end"){ refresh(id); }
+  };
+}
+function startPoll(id){ clearInterval(pollT); pollT=setInterval(async()=>{
+  try{ const s=await api(`/scans/${id}`); setStatus(s.status);
+    if(["completed","failed","stopped"].includes(s.status)){ clearInterval(pollT); refresh(id);} }catch(e){} },1500); }
+
+async function refresh(id){
+  try{ const s=await api(`/scans/${id}`); setStatus(s.status); findings=await api(`/scans/${id}/findings`); renderFindings(s);}catch(e){}
+}
+function renderFindings(s){
+  $("#p-find").style.display="block";
+  const counts={}; SEV.forEach(x=>counts[x]=findings.filter(f=>f.severity===x).length);
+  $("#findCount").textContent=findings.length;
+  const total=findings.length||1;
+  $("#sevbar").innerHTML = findings.length? SEV.filter(x=>counts[x]>0).map(x=>
+    `<span style="flex:${counts[x]};background:var(--${x})" title="${x}: ${counts[x]}">${counts[x]}</span>`).join("")
+    : `<span style="flex:1;background:#475569">no findings</span>`;
+  if(s && s.status!=="running"){
+    $("#reportLinks").style.display="flex";
+    $("#reportLinks").innerHTML=["html","md","json"].map(f=>
+      `<a class="tag" target="_blank" href="/api/scans/${scan.scan_id}/report.${f}">report.${f}</a>`).join("");
+  }
+  $("#findBody").innerHTML = findings.map(f=>`
+    <tr class="f" data-id="${f.id}">
+      <td><span class="pill" style="background:var(--${f.severity})">${f.severity}</span></td>
+      <td>${esc(f.title)}<div class="muted mono" style="font-size:11px">${esc(f.endpoint||"")}</div>
+        <div class="detail" id="d-${f.id}" style="display:none"></div></td>
+      <td><span class="tag">${esc(f.status)}</span></td>
+      <td class="mono">${f.cvss_score??"—"}</td>
+    </tr>`).join("");
+  document.querySelectorAll("tr.f").forEach(tr=>tr.onclick=()=>{
+    const f=findings.find(x=>x.id===tr.dataset.id); const d=$("#d-"+f.id);
+    if(d.style.display==="none"){
+      d.style.display="block";
+      d.innerHTML=`<div class="muted" style="margin-top:6px">${esc(f.category)} · ${esc(f.confidence)} confidence · ${esc(f.agent)}</div>
+        <p>${esc(f.description)}</p>${f.impact?`<p><b>Impact:</b> ${esc(f.impact)}</p>`:""}
+        ${(f.reproduction&&f.reproduction.length)?`<div><b>Reproduction</b><ol>${f.reproduction.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div>`:""}
+        ${f.remediation?`<p><b>Remediation:</b> ${esc(f.remediation)}</p>`:""}
+        <pre>${esc(JSON.stringify(f.evidence,null,1).slice(0,1500))}</pre>`;
+    } else d.style.display="none";
+  });
+}
+</script>
+</body>
+</html>
